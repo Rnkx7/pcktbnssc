@@ -1606,6 +1606,8 @@ abstract contract Ownable is Context {
         emit OwnershipTransferred(address(0), msgSender);
     }
 
+    
+
     /**
      * @dev Returns the address of the current owner.
      */
@@ -1642,6 +1644,8 @@ abstract contract Ownable is Context {
         emit OwnershipTransferred(_owner, newOwner);
         _owner = newOwner;
     }
+
+
 }
 
 pragma solidity ^0.7.0;
@@ -1649,16 +1653,24 @@ pragma abicoder v2;
 
 contract PocketBone is ERC721, Ownable {
 
-    uint256 public constant MAX_TOKENS = 10000;
+    uint256 public constant MAX_TOKENS = 6500;
     uint256 public constant SHUTOFF = 10;
-    uint256 public constant PRESALE_TOKENS = 100;
-    uint256 public constant MAX_BY_MINT_WHITELIST = 1;
-    // uint256 public constant price = 60 * 10**15; // .06 eth
-    uint256 public constant price = 1 * 10**15; // .001 eth
+    uint256 public constant SHUTOFFfree = 1;
+    uint256 public constant PRESALE_TOKENS = 2500;
+    uint256 public constant FREE_TOKENS = 1000;
+    uint256 public constant MAX_BY_MINT_WHITELIST = 3;
+    uint256 public constant MAX_BY_MINT_FREE = 1;
+    // uint256 public constant price = 60 * 10**15; // 0.06 eth
+    uint256 public constant price = 100 * 10**15; // 0.1 eth
+    uint256 public constant wlprice = 70 * 10**15; // 0.07 eth
+    uint256 public constant freePrice = 0; // 0 eth
     bool public isSaleActive = false;
     bool public isPresaleActive = false;
+    bool public isFreesaleActive = false;
     mapping(address => bool) private _whiteList;
     mapping(address => uint256) private _whiteListClaimed;
+    mapping(address => bool) private _whiteListfree;
+    mapping(address => uint256) private _whiteListClaimedfree;
 
     address public constant w1 = 0x98eAfb43BB4688d12C561eda173fCe11e7d2c911; //BEASTON
     address public constant w2 = 0xdb734624D5f1F53508121684d222e5393fAB2843; //Chapps
@@ -1695,9 +1707,23 @@ contract PocketBone is ERC721, Ownable {
         uint256 total = totalSupply();
         require(total + _count <= PRESALE_TOKENS, "Max limit");
         require(total <= PRESALE_TOKENS, "All presale Pocket Bones are sold out");
-        require(msg.value >= price*_count, "Value below price");
+        require(msg.value >= wlprice*_count, "Value below price");
         _whiteListClaimed[msg.sender] += 1;
         _safeMint(msg.sender, total);
+    }
+
+    function freeMintBone(uint256 _count) public payable {
+        uint256 totalSupply = totalSupply();
+        require(_count <= MAX_BY_MINT_FREE, "Incorrect amount to claim");
+        require(_whiteListfree[msg.sender], "You are not in whitelist");
+        require(_whiteListClaimedfree[msg.sender] + _count <= MAX_BY_MINT_FREE, "Purchase exceeds max allowed");
+        require(isFreesaleActive, "Sale is not active" );
+        require(totalSupply + _count < FREE_TOKENS + 1, "Exceeds available Pocket Bones");
+        require(msg.value >= freePrice * _count, "Ether value sent is not correct");
+        for(uint256 i = 0; i < _count; i++){
+            _whiteListClaimedfree[msg.sender] += 1;
+            _safeMint(msg.sender, totalSupply + i);
+        }
     }
 
     function addToWhiteList(address[] calldata addresses) external onlyOwner {
@@ -1709,8 +1735,21 @@ contract PocketBone is ERC721, Ownable {
         }
     }
 
+    function addToWhiteListFree(address[] calldata addresses) external onlyOwner {
+        for (uint256 i = 0; i < addresses.length; i++) {
+            require(addresses[i] != address(0), "Null address found");
+
+            _whiteListfree[addresses[i]] = true;
+            _whiteListClaimedfree[addresses[i]] > 0 ? _whiteListClaimedfree[addresses[i]] : 0;
+        }
+    }
+
     function addressInWhitelist(address addr) external view returns (bool) {
         return _whiteList[addr];
+    }
+
+    function addressInWhitelistfree(address addr) external view returns (bool) {
+        return _whiteListfree[addr];
     }
 
     function removeFromWhiteList(address[] calldata addresses) external onlyOwner {
@@ -1721,16 +1760,28 @@ contract PocketBone is ERC721, Ownable {
         }
     }
 
+    function removeFromWhiteListfree(address[] calldata addresses) external onlyOwner {
+        for (uint256 i = 0; i < addresses.length; i++) {
+            require(addresses[i] != address(0), "Null address found");
+
+            _whiteListfree[addresses[i]] = false;
+        }
+    }
+
     function setBaseURI(string memory _baseURI) public onlyOwner {
         _setBaseURI(_baseURI);
     }
 
-    function flipPresaleStatus() external onlyOwner {
+    function flipPresaleStatus() external {
         isPresaleActive = !isPresaleActive;
     }
 
     function flipSaleStatus() external onlyOwner {
         isSaleActive = !isSaleActive;
+    }
+
+    function flipFreealeStatus() external onlyOwner {
+        isFreesaleActive = !isFreesaleActive;
     }
 
     function withdrawAll() external onlyOwner {
